@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import ScoringRetryButton from "./ScoringRetryButton";
+import FailedPracticeScoring from "./FailedPracticeScoring";
 import ResultSpeakingTab from "./ResultSpeakingTab";
 import ResultWritingTab from "./ResultWritingTab";
 import type { DetailData } from "./result-detail-types";
@@ -215,6 +217,7 @@ export default function ResultDetailDrawer({
                       {data.student.major} ({data.student.cohort})
                     </span>
                   </div>
+                  <FailedPracticeScoring userId={data.student.id} />
                   <div>
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-0.5">
                       Status Ujian
@@ -236,6 +239,7 @@ export default function ResultDetailDrawer({
                         </span>
                       )}
                     </span>
+                    {data.status === "GAGAL" && <ScoringRetryButton resourceType="TEST" resourceId={data.testAttemptId} onAccepted={() => setData({ ...data, status: "SEDANG_MENGERJAKAN" })} />}
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-0.5">
