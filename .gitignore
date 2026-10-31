@@ -69,3 +69,10 @@ ai-engine/.env
 ai-engine/models/
 *.onnx
 *.onnx.json
+
+# Local QA database, credentials and runtime logs
+/.qa-local/
+# Runtime audio uploads (existing tracked fixtures remain tracked)
+/public/uploads/audio/
+.superpowers/
+COMMIT_COMMANDS.txt
