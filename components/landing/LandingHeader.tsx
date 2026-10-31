@@ -1,163 +1,60 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { ArrowUpRight, Menu, X } from "lucide-react";
 import Logo from "@/components/ui/Logo";
 
-type User = {
-  fullName: string;
-  role: string;
-} | null;
-
-interface LandingHeaderProps {
-  user: User;
-}
+type LandingHeaderProps = { user: { fullName: string; role: string } | null };
+const LINKS = [
+  { name: "Tes Penempatan", href: "#placement-test" },
+  { name: "Modul Belajar", href: "#ai-learning" },
+  { name: "Demo", href: "#demo-section" },
+  { name: "FAQ", href: "#faq" },
+];
 
 export default function LandingHeader({ user }: LandingHeaderProps) {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [isScrolled, setIsScrolled] = useState(false);
-
+  const [open, setOpen] = useState(false);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
+    if (!open) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { setOpen(false); toggleRef.current?.focus(); }
     };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
+    const closeOutside = (event: PointerEvent) => {
+      if (!headerRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    const closeOnDesktop = () => { if (desktop.matches) setOpen(false); };
+    document.addEventListener("keydown", closeOnEscape);
+    document.addEventListener("pointerdown", closeOutside);
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => {
+      document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("pointerdown", closeOutside);
+      desktop.removeEventListener("change", closeOnDesktop);
+    };
+  }, [open]);
+  const dashboard = user?.role === "ADMIN" ? "/admin/dashboard" : "/student";
   return (
-    <nav
-      className={`fixed left-1/2 -translate-x-1/2 z-50 transition-all duration-300 ${
-        isScrolled
-          ? "top-4 w-[90%] max-w-5xl rounded-full bg-white/80 border border-gray-200 shadow-md py-2.5 px-8 backdrop-blur-lg"
-          : "top-0 w-full bg-white border-b border-gray-150 py-4 px-6"
-      }`}
-    >
-      <div className="max-w-7xl mx-auto flex justify-between items-center">
-        <div className="flex items-center">
-          <Logo className="h-11 w-36" priority />
+    <header className="landing-header" ref={headerRef}>
+      <div className="landing-container header-row">
+        <Link href="/" aria-label="PRISM, beranda" onClick={() => setOpen(false)}><Logo className="h-11 w-36" priority /></Link>
+        <nav className="desktop-navigation" aria-label="Navigasi utama">
+          {LINKS.map((link) => <a key={link.href} href={link.href}>{link.name}</a>)}
+        </nav>
+        <div className="desktop-auth">
+          {user ? <Link href={dashboard} className="landing-button primary">Dashboard<ArrowUpRight size={16} aria-hidden="true" /></Link> : <><Link href="/login">Masuk</Link><Link href="/register" className="landing-button primary">Mulai Tes<ArrowUpRight size={16} aria-hidden="true" /></Link></>}
         </div>
-        
-        {/* Desktop Links */}
-        <div className="hidden md:flex items-center gap-8">
-          {[
-            { name: "Placement Test", href: "#placement-test" },
-            { name: "AI Learning", href: "#ai-learning" },
-            { name: "Coba Demo", href: "#demo-section" },
-            { name: "FAQ", href: "#faq" }
-          ].map((link, idx) => (
-            <a
-              key={idx}
-              href={link.href}
-              className="font-inter text-sm font-semibold text-gray-600 hover:text-blue-600 transition-colors duration-200 cursor-pointer"
-            >
-              {link.name}
-            </a>
-          ))}
-        </div>
-
-        {/* Auth CTA */}
-        <div className="hidden md:flex items-center gap-4">
-          {user ? (
-            <Link
-              href={user.role === "ADMIN" ? "/admin/dashboard" : "/student"}
-              className="bg-primary hover:bg-blue-800 text-white font-hanken text-sm font-bold px-6 py-2.5 rounded-xl transition-all duration-200 cursor-pointer"
-            >
-              Dashboard
-            </Link>
-          ) : (
-            <div className="flex items-center gap-6">
-              <Link
-                href="/login"
-                className="font-inter text-sm font-semibold text-gray-600 hover:text-blue-600 transition-colors duration-200 cursor-pointer"
-              >
-                Masuk
-              </Link>
-              <Link
-                href="/register"
-                className="bg-primary hover:bg-blue-800 text-white font-hanken text-sm font-bold px-6 py-2.5 rounded-xl transition-all duration-200 cursor-pointer"
-              >
-                Mulai Sekarang
-              </Link>
-            </div>
-          )}
-        </div>
-
-        {/* Mobile Menu Button */}
-        <div className="md:hidden flex items-center">
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="text-gray-600 focus:outline-none cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-2xl">
-              {mobileMenuOpen ? "close" : "menu"}
-            </span>
-          </button>
-        </div>
+        <button ref={toggleRef} type="button" className="mobile-menu-toggle" aria-label={open ? "Tutup menu navigasi" : "Buka menu navigasi"} aria-expanded={open} aria-controls="landing-mobile-menu" onClick={() => setOpen(!open)}>{open ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}</button>
       </div>
-
-      {/* Mobile Links Dropdown */}
-      {mobileMenuOpen && (
-        <div className="md:hidden mt-4 pt-4 border-t border-gray-100 flex flex-col gap-4 animate-fadeIn">
-          <a
-            href="#placement-test"
-            onClick={() => setMobileMenuOpen(false)}
-            className="font-inter text-sm font-semibold text-gray-600 hover:text-blue-600 transition-colors"
-          >
-            Placement Test
-          </a>
-          <a
-            href="#ai-learning"
-            onClick={() => setMobileMenuOpen(false)}
-            className="font-inter text-sm font-semibold text-gray-600 hover:text-blue-600 transition-colors"
-          >
-            AI Learning
-          </a>
-          <a
-            href="#demo-section"
-            onClick={() => setMobileMenuOpen(false)}
-            className="font-inter text-sm font-semibold text-gray-600 hover:text-blue-600 transition-colors"
-          >
-            Coba Demo
-          </a>
-          <a
-            href="#faq"
-            onClick={() => setMobileMenuOpen(false)}
-            className="font-inter text-sm font-semibold text-gray-600 hover:text-blue-600 transition-colors"
-          >
-            FAQ
-          </a>
-          
-          <div className="pt-4 border-t border-gray-100 flex flex-col gap-3">
-            {user ? (
-              <Link
-                href={user.role === "ADMIN" ? "/admin/dashboard" : "/student"}
-                onClick={() => setMobileMenuOpen(false)}
-                className="bg-primary hover:bg-blue-800 text-white font-hanken text-sm font-bold py-3 rounded-xl text-center cursor-pointer transition-all duration-200"
-              >
-                Dashboard
-              </Link>
-            ) : (
-              <>
-                <Link
-                  href="/login"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="font-inter text-sm font-bold text-gray-700 py-2 hover:text-blue-600 text-center cursor-pointer transition-all duration-200"
-                >
-                  Masuk
-                </Link>
-                <Link
-                  href="/register"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="bg-primary hover:bg-blue-800 text-white font-hanken text-sm font-bold py-3 rounded-xl text-center cursor-pointer transition-all duration-200"
-                >
-                  Mulai Sekarang
-                </Link>
-              </>
-            )}
-          </div>
+      <nav id="landing-mobile-menu" className="mobile-navigation" aria-label="Navigasi mobile" hidden={!open}>
+        {LINKS.map((link) => <a key={link.href} href={link.href} onClick={() => setOpen(false)}>{link.name}<ArrowUpRight size={16} aria-hidden="true" /></a>)}
+        <div className="mobile-auth">
+          {user ? <Link href={dashboard} className="landing-button primary" onClick={() => setOpen(false)}>Dashboard</Link> : <><Link href="/login" className="landing-button secondary" onClick={() => setOpen(false)}>Masuk</Link><Link href="/register" className="landing-button primary" onClick={() => setOpen(false)}>Mulai Tes</Link></>}
         </div>
-      )}
-    </nav>
+      </nav>
+    </header>
   );
 }
