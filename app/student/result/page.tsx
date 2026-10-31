@@ -34,6 +34,7 @@ type Result = {
 
 type ResultPayload = {
   hasResult: boolean;
+  status?: string;
   result?: Result;
   message?: string;
 };
@@ -133,6 +134,12 @@ export default function StudentResultPage() {
 
       const data: ResultPayload = await res.json();
 
+      if (data.status === "FAILED") {
+        if (pollingRef.current) clearInterval(pollingRef.current);
+        pollingRef.current = null;
+        setError(data.message || "Penilaian gagal. Hubungi admin untuk mengulang penilaian.");
+        return;
+      }
       if (data.hasResult && data.result) {
         if (pollingRef.current) {
           clearInterval(pollingRef.current);

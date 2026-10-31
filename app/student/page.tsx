@@ -218,7 +218,7 @@ export default function StudentDashboardPage() {
         {/* Welcome Section */}
         <div className="space-y-1">
           <h1 className="font-hanken text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white">
-            Selamat Datang Kembali, {user?.fullName?.split(' ')[0]}! 👋
+            Selamat Datang Kembali, {user?.fullName?.split(' ')[0]}!
           </h1>
           <p className="font-inter text-sm text-gray-500 dark:text-gray-400">
             Lanjutkan perjalanan akademik dan peningkatan kompetensi bahasa Inggris Anda hari ini.

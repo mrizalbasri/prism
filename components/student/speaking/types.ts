@@ -40,6 +40,7 @@ export type SpeakingScenario = {
 export type Session = {
   id: string;
   score: number;
+  status?: string;
   scores?: {
     fluency: number;
     pronunciation: number;

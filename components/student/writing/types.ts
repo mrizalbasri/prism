@@ -17,6 +17,7 @@ export type FeedbackObject = {
 export type Submission = {
   id: string;
   score: number;
+  status?: string;
   scores?: {
     grammar: number;
     clarity: number;

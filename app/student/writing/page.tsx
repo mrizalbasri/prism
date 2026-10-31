@@ -147,7 +147,7 @@ export default function WritingPage() {
                 }
               } else if (sub.status === "FAILED") {
                 if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-                setActionError("Evaluasi AI gagal memproses esai ini. Silakan coba lagi.");
+                setActionError("Penilaian AI gagal. Esai tetap tersimpan; hubungi admin untuk mengulang penilaian.");
                 setIsSubmitting(false);
               }
             }

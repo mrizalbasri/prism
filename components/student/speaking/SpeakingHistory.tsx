@@ -71,7 +71,7 @@ export default function SpeakingHistory({
                 <div className="flex items-center gap-4 border-l border-gray-100 dark:border-gray-800 pl-0 md:pl-6">
                   <div className="text-center">
                     <p className="font-mono text-3xl font-black text-red-600 dark:text-red-400">
-                      {session.score}
+                      {session.status === "FAILED" ? "Gagal" : session.status && session.status !== "COMPLETED" ? "Diproses" : session.score}
                     </p>
                     <p className="font-inter text-[9px] uppercase font-bold text-gray-400 tracking-wider">
                       Skor
@@ -79,6 +79,7 @@ export default function SpeakingHistory({
                   </div>
                 </div>
               </div>
+              {session.status === "FAILED" && <p className="mt-3 text-sm text-red-600" role="status">Penilaian gagal. Jawaban tersimpan; hubungi admin untuk mengulang penilaian.</p>}
             </div>
           ))}
         </div>
