@@ -47,7 +47,6 @@ export async function GET(request: NextRequest) {
     const testAttempt = await prisma.testAttempt.findFirst({
       where: {
         userId: user.id,
-        status: 'COMPLETED',
       },
       include: {
         finalResult: true,
@@ -66,9 +65,12 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      orderBy: { completedAt: 'desc' },
+      orderBy: { createdAt: 'desc' },
     });
 
+    if (testAttempt && testAttempt.status !== 'COMPLETED') {
+      return NextResponse.json({ hasResult: false, status: testAttempt.status, message: testAttempt.status === 'FAILED' ? 'Penilaian AI gagal. Jawaban Anda tetap tersimpan. Hubungi admin untuk mengulang penilaian.' : 'Penilaian sedang diproses.' });
+    }
     if (!testAttempt || !testAttempt.finalResult) {
       return NextResponse.json(
         {

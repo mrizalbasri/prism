@@ -1,3 +1,4 @@
+import { ownsScoringAudio } from '@/lib/scoring-audio';
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { SectionType, SectionStatus, TestAttemptStatus } from '@prisma/client';
@@ -34,6 +35,7 @@ export async function POST(request: NextRequest) {
     const body: SaveAnswerRequest = await request.json();
     const { answers, writingResponse, speakingResponse, speakingAudioUrl, currentSection, isCompleted = true } = body;
 
+    if (speakingAudioUrl && (typeof speakingAudioUrl !== 'string' || !await ownsScoringAudio(user.id, speakingAudioUrl))) return NextResponse.json({ error: 'Audio access denied' }, { status: 403 });
     if (!currentSection) {
       return NextResponse.json({ error: 'currentSection is required' }, { status: 400 });
     }
@@ -188,11 +190,11 @@ export async function POST(request: NextRequest) {
         create: {
           sectionAttemptId: sectionAttempt.id,
           userId: user.id,
-          transcript: speakingResponse || "(Audio recording submitted)",
+          transcript: speakingResponse || (speakingAudioUrl ? "(Audio recording submitted)" : ""),
           audioUrl: speakingAudioUrl || null,
         },
         update: {
-          transcript: speakingResponse || "(Audio recording submitted)",
+          transcript: speakingResponse || (speakingAudioUrl ? "(Audio recording submitted)" : ""),
           audioUrl: speakingAudioUrl || null,
         },
       });

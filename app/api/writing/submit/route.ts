@@ -1,9 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse, after } from 'next/server';
-import { ResponseStatus, Prisma } from '@prisma/client';
+import { ResponseStatus } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
-import { scoreWritingWithAI } from '@/lib/scoring';
+import { runLocalScoring, markScoringFailed } from '@/lib/ai-scoring-processor';
 import { enqueueAIScoring } from '@/lib/queue';
 
 export async function POST(request: NextRequest) {
@@ -11,6 +11,9 @@ export async function POST(request: NextRequest) {
     const user = await getCurrentUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (user.role !== 'STUDENT' || !user.hasModuleAccess) {
+      return NextResponse.json({ error: 'Module access required' }, { status: 403 });
     }
 
     // Check daily submission limit (max 3 submissions per day)
@@ -48,7 +51,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { promptId, essay: responseText } = body;
 
-    if (!promptId || !responseText) {
+    if (typeof promptId !== 'string' || typeof responseText !== 'string' || !responseText.trim()) {
       return NextResponse.json(
         { error: 'promptId and essay are required' },
         { status: 400 }
@@ -77,6 +80,7 @@ export async function POST(request: NextRequest) {
         promptId,
         responseText,
         wordCount,
+        aiFeedbackJson: { scoringContext: { promptText: prompt.promptText, rubric: prompt.rubric } },
         status: ResponseStatus.PENDING,
       },
     });
@@ -100,7 +104,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Process AI scoring via BullMQ queue with automatic retry, or fallback to in-process after()
-    await enqueueAIScoring(
+    try { await enqueueAIScoring(
       {
         type: 'WRITING_SCORING',
         submissionId: submission.id,
@@ -108,16 +112,8 @@ export async function POST(request: NextRequest) {
         promptText: prompt.promptText,
         rubric: prompt.rubric,
       },
-      async () => {
-        after(async () => {
-          await processWritingScoring(submission.id, responseText, prompt.promptText, prompt.rubric).catch(
-            (error) => {
-              console.error('Writing scoring error:', error);
-            }
-          );
-        });
-      }
-    );
+      async () => { after(() => runLocalScoring({ type: 'WRITING_SCORING', submissionId: submission.id, responseText, promptText: prompt.promptText, rubric: prompt.rubric })); }
+    ); } catch (error) { await markScoringFailed({ type: 'WRITING_SCORING', submissionId: submission.id, responseText, promptText: prompt.promptText, rubric: prompt.rubric }); throw error; }
 
     return NextResponse.json(
       {
@@ -137,48 +133,5 @@ export async function POST(request: NextRequest) {
       { error: 'Internal server error' },
       { status: 500 }
     );
-  }
-}
-
-async function processWritingScoring(
-  submissionId: string,
-  responseText: string,
-  promptText: string,
-  rubric: unknown
-): Promise<void> {
-  try {
-    // Update status to processing
-    await prisma.writingSubmission.update({
-      where: { id: submissionId },
-      data: { status: ResponseStatus.PROCESSING },
-    });
-
-    // Score with AI
-    const { score, feedback } = await scoreWritingWithAI(responseText, promptText, rubric);
-
-    // Extract dimension scores from feedback if available
-    const grammarScore = typeof feedback?.grammarScore === 'number' ? feedback.grammarScore : (feedback?.grammar ? 75 : score * 0.9);
-    const clarityScore = typeof feedback?.clarityScore === 'number' ? feedback.clarityScore : (feedback?.content ? 80 : score * 0.95);
-    const structureScore = typeof feedback?.structureScore === 'number' ? feedback.structureScore : (feedback?.organization ? 70 : score * 0.85);
-
-    // Update submission with scores
-    await prisma.writingSubmission.update({
-      where: { id: submissionId },
-      data: {
-        aiFeedbackJson: feedback as Prisma.InputJsonValue,
-        grammarScore,
-        clarityScore,
-        structureScore,
-        overallScore: score,
-        status: ResponseStatus.COMPLETED,
-        completedAt: new Date(),
-      },
-    });
-  } catch (error) {
-    console.error('Process writing scoring error:', error);
-    await prisma.writingSubmission.update({
-      where: { id: submissionId },
-      data: { status: ResponseStatus.FAILED },
-    });
   }
 }

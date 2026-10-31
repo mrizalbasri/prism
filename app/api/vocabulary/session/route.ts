@@ -14,6 +14,9 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    if (user.role !== 'STUDENT' || !user.hasModuleAccess) {
+      return NextResponse.json({ error: 'Module access required' }, { status: 403 });
+    }
 
     const session = await prisma.vocabularySession.create({
       data: {
@@ -55,6 +58,9 @@ export async function PATCH(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    if (user.role !== 'STUDENT' || !user.hasModuleAccess) {
+      return NextResponse.json({ error: 'Module access required' }, { status: 403 });
+    }
 
     const body = await request.json();
     const { sessionId, cardsReviewed, cardsLearned, cardsMastered } = body;
@@ -92,29 +98,28 @@ export async function PATCH(request: NextRequest) {
     const endedAt = new Date();
     const durationSec = Math.floor((endedAt.getTime() - session.startedAt.getTime()) / 1000);
 
-    // Update session
-    const updatedSession = await prisma.vocabularySession.update({
-      where: { id: sessionId },
-      data: {
-        cardsReviewed: cardsReviewed || 0,
-        cardsLearned: cardsLearned || 0,
-        cardsMastered: cardsMastered || 0,
-        durationSec,
-        
-      },
+    // Claim completion and record study time together to prevent duplicate history.
+    const updatedSession = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.vocabularySession.updateMany({
+        where: { id: sessionId, userId: user.id, endedAt: null },
+        data: {
+          cardsReviewed: cardsReviewed || 0,
+          cardsLearned: cardsLearned || 0,
+          cardsMastered: cardsMastered || 0,
+          durationSec,
+          endedAt,
+        },
+      });
+      if (claimed.count === 0) return null;
+      await tx.learningSession.create({
+        data: { userId: user.id, sectionType: 'VOCABULARY', durationSec },
+      });
+      return tx.vocabularySession.findUniqueOrThrow({ where: { id: sessionId } });
     });
 
-    // Create learning session record
-    await prisma.learningSession.create({
-      data: {
-        userId: user.id,
-        sectionType: 'VOCABULARY',
-        durationSec,
-        
-        
-        
-      },
-    });
+    if (!updatedSession) {
+      return NextResponse.json({ error: 'Session already ended' }, { status: 409 });
+    }
 
     await createAuditLog(
       user.id,
@@ -154,6 +159,9 @@ export async function GET(request: NextRequest) {
     const user = await getCurrentUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (user.role !== 'STUDENT' || !user.hasModuleAccess) {
+      return NextResponse.json({ error: 'Module access required' }, { status: 403 });
     }
 
     const stats = await getVocabularyStats(user.id);

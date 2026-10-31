@@ -1,9 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse, after } from 'next/server';
-import { SectionType, SectionStatus, TestAttemptStatus, Prisma } from '@prisma/client';
+import { SectionStatus, TestAttemptStatus } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserFromRequest, createAuditLog } from '@/lib/auth';
-import { scoreWritingWithAI, scoreSpeakingWithAI, finalizeTestResults, calculateWeightedScore } from '@/lib/scoring';
+import { runLocalScoring, markScoringFailed } from '@/lib/ai-scoring-processor';
 import { enqueueAIScoring } from '@/lib/queue';
 import { findExpiredSection, isSubmissionLocked } from '@/lib/test-security';
 import { getTestSettings } from '@/lib/settings';
@@ -141,16 +141,10 @@ export async function POST(request: NextRequest) {
     );
 
     // Process AI scoring via BullMQ queue with automatic retry, or fallback to in-process after()
-    await enqueueAIScoring(
+    try { await enqueueAIScoring(
       { type: 'TEST_SCORING', testAttemptId },
-      async () => {
-        after(async () => {
-          await processAIScoring(testAttemptId).catch((error) => {
-            console.error('AI scoring error:', error);
-          });
-        });
-      }
-    );
+      async () => { after(() => runLocalScoring({ type: 'TEST_SCORING', testAttemptId })); }
+    ); } catch (error) { await markScoringFailed({ type: 'TEST_SCORING', testAttemptId }); throw error; }
 
     return NextResponse.json(
       {
@@ -166,131 +160,5 @@ export async function POST(request: NextRequest) {
       { error: 'Internal server error' },
       { status: 500 }
     );
-  }
-}
-
-/**
- * Process AI scoring for writing and speaking sections
- */
-async function processAIScoring(testAttemptId: string): Promise<void> {
-  try {
-    const testAttempt = await prisma.testAttempt.findUnique({
-      where: { id: testAttemptId },
-      include: {
-        sectionAttempts: {
-          include: {
-            writingResponse: true,
-            speakingResponse: true,
-          },
-        },
-      },
-    });
-
-    if (!testAttempt) return;
-
-    // Score writing and speaking responses
-    for (const section of testAttempt.sectionAttempts) {
-      if (section.sectionType === SectionType.WRITING && section.writingResponse && section.writingResponse.content) {
-        try {
-          // Parse prompt details from section.feedback JSON
-          let promptText = "Respond to the prompt.";
-          let rubric = null;
-          if (section.feedback) {
-            try {
-              const fb = JSON.parse(section.feedback);
-              promptText = fb.prompt || promptText;
-              rubric = fb.rubric || null;
-            } catch (e) {
-              console.error('Failed to parse writing section feedback:', e);
-            }
-          }
-
-          // Score with AI
-          const { score, feedback } = await scoreWritingWithAI(
-            section.writingResponse.content,
-            promptText,
-            rubric
-          );
-
-          // Update section attempt score & writing response feedback
-          await prisma.$transaction([
-            prisma.sectionAttempt.update({
-              where: { id: section.id },
-              data: {
-                rawScore: score,
-                weightedScore: calculateWeightedScore(score, SectionType.WRITING),
-              },
-            }),
-            prisma.writingResponse.update({
-              where: { id: section.writingResponse.id },
-              data: {
-                feedback: feedback as Prisma.InputJsonValue,
-                wordCount: section.writingResponse.content.trim().split(/\s+/).length,
-              },
-            }),
-          ]);
-        } catch (error) {
-          console.error('Writing scoring error:', error);
-        }
-      }
-
-      // Score speaking responses
-      if (section.sectionType === SectionType.SPEAKING && section.speakingResponse && section.speakingResponse.transcript) {
-        try {
-          // Parse prompt details from section.feedback JSON
-          let promptText = "Respond to the prompt.";
-          let rubric = null;
-          if (section.feedback) {
-            try {
-              const fb = JSON.parse(section.feedback);
-              promptText = fb.prompt || promptText;
-              rubric = fb.rubric || null;
-            } catch {
-              console.error('Failed to parse speaking section feedback');
-            }
-          }
-
-          // Score with AI
-          const { score, feedback } = await scoreSpeakingWithAI(
-            section.speakingResponse.transcript,
-            promptText,
-            rubric,
-            section.speakingResponse.audioUrl || undefined
-          );
-
-          const finalTranscriptText = feedback?.transcript || (section.speakingResponse.transcript === "(Audio recording submitted)" ? "Transcription completed by AI." : section.speakingResponse.transcript);
-
-          // Update section attempt score & speaking response feedback
-          await prisma.$transaction([
-            prisma.sectionAttempt.update({
-              where: { id: section.id },
-              data: {
-                rawScore: score,
-                weightedScore: calculateWeightedScore(score, SectionType.SPEAKING),
-              },
-            }),
-            prisma.speakingResponse.update({
-              where: { id: section.speakingResponse.id },
-              data: {
-                feedback: feedback as Prisma.InputJsonValue,
-                transcript: finalTranscriptText,
-              },
-            }),
-          ]);
-        } catch (error) {
-          console.error('Speaking scoring error:', error);
-        }
-      }
-    }
-
-    // Finalize results
-    await finalizeTestResults(testAttemptId);
-  } catch (error) {
-    console.error('Process AI scoring error:', error);
-    // Mark test as failed
-    await prisma.testAttempt.update({
-      where: { id: testAttemptId },
-      data: { status: TestAttemptStatus.FAILED },
-    });
   }
 }
