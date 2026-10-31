@@ -1,0 +1,21 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), claim: vi.fn(), audit: vi.fn(), enqueue: vi.fn(), after: vi.fn(), transaction: vi.fn(), writing: vi.fn(), speaking: vi.fn() }));
+vi.mock("@/lib/auth", () => ({ getCurrentUserFromRequest: mocks.auth }));
+vi.mock("@/lib/queue", () => ({ enqueueAIScoring: mocks.enqueue }));
+vi.mock("@/lib/ai-scoring-processor", () => ({ runLocalScoring: vi.fn(), markScoringFailed: vi.fn() }));
+vi.mock("next/server", async original => ({ ...await original<typeof import("next/server")>(), after: mocks.after }));
+vi.mock("@/lib/prisma", () => ({ default: { $transaction: mocks.transaction } }));
+import { POST } from "@/app/api/admin/scoring/retry/route";
+const request = (resourceType = "TEST") => new NextRequest("http://localhost/api/admin/scoring/retry", { method: "POST", body: JSON.stringify({ resourceType, resourceId: "resource" }) });
+beforeEach(() => { vi.resetAllMocks(); mocks.auth.mockResolvedValue({ id: "admin", role: "ADMIN" }); mocks.claim.mockResolvedValue({ count: 1 }); mocks.transaction.mockImplementation(callback => callback({ testAttempt: { updateMany: mocks.claim }, writingSubmission: { findUnique: mocks.writing, updateMany: mocks.claim }, speakingSession: { findUnique: mocks.speaking, updateMany: mocks.claim }, auditLog: { create: mocks.audit } })); });
+describe("admin scoring retry", () => {
+  it("requires authentication", async () => { mocks.auth.mockResolvedValue(null); expect((await POST(request())).status).toBe(401); expect(mocks.claim).not.toHaveBeenCalled(); });
+  it("rejects student retry", async () => { mocks.auth.mockResolvedValue({ role: "STUDENT" }); expect((await POST(request())).status).toBe(403); });
+  it("validates resource type", async () => { expect((await POST(request("OTHER"))).status).toBe(400); });
+  it("claims only FAILED tests and audits accepted retries", async () => { expect((await POST(request())).status).toBe(202); expect(mocks.claim.mock.calls[0][0].where).toEqual({ id: "resource", status: "FAILED" }); expect(mocks.audit).toHaveBeenCalled(); expect(mocks.enqueue).toHaveBeenCalledTimes(1); });
+  it("rejects completed or already processing resources", async () => { mocks.claim.mockResolvedValue({ count: 0 }); expect((await POST(request())).status).toBe(409); expect(mocks.enqueue).not.toHaveBeenCalled(); expect(mocks.audit).not.toHaveBeenCalled(); });
+  it("accepts only one concurrent claim", async () => { let failed = true; mocks.claim.mockImplementation(async () => { if (!failed) return { count: 0 }; failed = false; return { count: 1 }; }); const responses = await Promise.all([POST(request()), POST(request())]); expect(responses.map(response => response.status).sort()).toEqual([202,409]); expect(mocks.enqueue).toHaveBeenCalledTimes(1); });
+  it("uses saved writing prompt and rubric despite prompt edits", async () => { mocks.writing.mockResolvedValue({ status: "FAILED", responseText: "Saved essay", aiFeedbackJson: { scoringContext: { promptText: "Original prompt", rubric: null } }, prompt: { promptText: "Edited prompt", rubric: { changed: true } } }); expect((await POST(request("WRITING"))).status).toBe(202); expect(mocks.enqueue.mock.calls[0][0]).toMatchObject({ responseText: "Saved essay", promptText: "Original prompt", rubric: null }); });
+  it("uses the stored recording and speaking scenario", async () => { mocks.speaking.mockResolvedValue({ status: "FAILED", transcriptText: "Saved transcript", audioUrl: "/uploads/audio/a.webm", aiFeedbackJson: { scoringContext: { scenarioTitle: "Original", scenarioDescription: "Original description", rubric: null } }, scenario: { title: "Edited", description: "Edited", rubric: {} } }); expect((await POST(request("SPEAKING"))).status).toBe(202); expect(mocks.enqueue.mock.calls[0][0]).toMatchObject({ audioUrl: "/uploads/audio/a.webm", scenarioTitle: "Original", rubric: null }); });
+});
