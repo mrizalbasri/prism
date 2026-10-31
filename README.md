@@ -1,209 +1,134 @@
-# PRISM
-
-Platform placement test Bahasa Inggris + modul pembelajaran mandiri berbasis AI untuk mahasiswa.
-
-## Ringkasan
-
-PRISM dirancang untuk 2 kebutuhan utama:
-
-1. **Placement Test resmi kampus** (Vocabulary, Grammar, Reading, Writing, Speaking)
-2. **Modul belajar lanjutan** setelah test (Vocabulary flashcard, Writing practice, Speaking practice)
-
-Target awal: President University Pekanbaru.
-
-## Kenapa PRISM kuat
-
-### Secara akronim
-
-**President Readiness in Inglish Skill Measurement**
-
-### Secara filosofi
-
-Prisma memecah satu cahaya menjadi spektrum warna yang lengkap — merah, kuning, hijau, biru, dan seterusnya.
-
-PRISM bekerja dengan prinsip yang sama: dari satu rangkaian assessment, platform memecah kemampuan bahasa Inggris mahasiswa menjadi komponen yang bisa diukur secara detail:
-
-- Vocabulary
-- Grammar
-- Reading
-- Listening *(dalam roadmap pengembangan)*
-- Writing
-- Speaking
-
-Hasilnya bukan sekadar satu angka, tapi gambaran kemampuan yang menyeluruh dan dapat ditindaklanjuti.
+<div align="center">
+  <img src="public/logo.webp" alt="Logo PRISM" width="88" />
+  <h1>PRISM</h1>
+  <p><strong>English Placement & Learning Platform</strong></p>
+  <p>Asesmen bahasa Inggris yang terstruktur, dilanjutkan dengan pembelajaran mandiri berbantuan AI.</p>
+  <p><a href="#fitur-utama">Fitur</a> · <a href="#menjalankan-secara-lokal">Mulai pengembangan</a> · <a href="docs/README.md">Dokumentasi</a></p>
+</div>
 
 ---
 
-## Tech Stack
+PRISM membantu perguruan tinggi memetakan kemampuan bahasa Inggris mahasiswa dan menyediakan ruang latihan setelah asesmen. Mahasiswa mengikuti placement test, melihat hasil per keterampilan, lalu melanjutkan latihan Vocabulary, Writing, dan Speaking melalui akses modul yang dikelola kampus.
 
-- **Framework:** Next.js `16.2.9` (App Router)
-- **Language:** TypeScript
-- **UI:** React `19`, Tailwind CSS `4`
-- **DB:** PostgreSQL + Prisma `7`
-- **Auth:** JWT (httpOnly cookie) + `bcryptjs`
-- **AI:** Google Gemini + MiniMax (via TokenRouter)
+Bagi administrator, PRISM menyediakan pengelolaan mahasiswa, bank soal, materi latihan, dan hasil asesmen dalam satu aplikasi. Antarmuka menggunakan Bahasa Indonesia dengan materi pembelajaran bahasa Inggris.
 
----
+## Fitur utama
 
-## Fitur Utama
+| Area | Kemampuan |
+| --- | --- |
+| Placement test | Enam bagian: Vocabulary, Grammar, Listening, Reading, Writing, dan Speaking; timer per bagian dan penyimpanan jawaban. |
+| Hasil asesmen | Skor per keterampilan, skor keseluruhan berbobot, klasifikasi Beginner–Advanced, dan pemetaan level CEFR berdasarkan ambang aplikasi. |
+| Vocabulary | Flashcard, sesi belajar, dan review kosakata. |
+| Writing | Latihan berdasarkan prompt, riwayat pengumpulan, serta penilaian dan umpan balik AI. |
+| Speaking | Latihan berbasis skenario, rekaman audio, riwayat sesi, serta umpan balik AI. |
+| Administrasi | Pengelolaan mahasiswa, akses modul, bank soal, materi latihan, pengaturan tes, dan ekspor hasil CSV. |
+| Penilaian asinkron | Pemrosesan lokal atau antrean BullMQ dengan Redis; pemantauan kegagalan dan penilaian ulang melalui admin. |
 
-### 1) Authentication
-- Register / Login
-- Role-based redirect (`STUDENT` / `ADMIN`)
-- Endpoint profil user aktif (`/api/auth/me`)
+Pemetaan CEFR merupakan interpretasi skor di dalam aplikasi, bukan sertifikasi kemampuan bahasa resmi.
 
-### 2) Placement Test
-- 5 section: Vocabulary, Grammar, Reading, Writing, Speaking
-- Timer per section
-- Simpan jawaban + submit test
-- Final scoring + level (`BEGINNER`, `INTERMEDIATE`, `ADVANCED`)
+## Alur penggunaan
 
-### 3) Student Dashboard
-- Ringkasan hasil test
-- Akses modul belajar setelah verifikasi token dosen
+1. Mahasiswa mendaftar dan masuk ke dashboard.
+2. Mahasiswa mengikuti enam bagian placement test.
+3. Sistem menilai jawaban objektif dan memproses Writing serta Speaking dengan AI.
+4. Mahasiswa melihat hasil setelah penilaian selesai.
+5. Mahasiswa dengan akses modul aktif melanjutkan latihan mandiri.
+6. Administrator meninjau hasil, mengelola materi, dan menindaklanjuti penilaian yang gagal.
 
-### 4) Learning Modules
-- **Vocabulary:** flashcard + review
-- **Writing:** latihan esai + feedback AI
-- **Speaking:** latihan speaking + feedback AI
+## Teknologi
 
-### 5) Admin
-- Dashboard hasil mahasiswa
-- Endpoint export hasil
+| Lapisan | Teknologi |
+| --- | --- |
+| Aplikasi web & API | Next.js 16 App Router, React 19, TypeScript |
+| Antarmuka | Tailwind CSS 4, Radix UI, Lucide |
+| Data | PostgreSQL, Prisma 7 |
+| Autentikasi | JWT dalam cookie HTTP-only, bcryptjs, peran Student dan Admin |
+| Integrasi AI | Google Gemini dan MiniMax melalui endpoint yang dapat dikonfigurasi |
+| Layanan pendamping | Python, FastAPI, Piper untuk layanan audio dan pembuatan soal |
+| Antrean opsional | BullMQ, Redis |
+| Penyimpanan audio | Disk lokal atau penyimpanan kompatibel S3, termasuk Cloudflare R2 |
+| Pengujian | Vitest, ESLint, TypeScript |
 
----
+Versi dependensi lengkap tersedia di [`package.json`](package.json) dan [`ai-engine/requirements.txt`](ai-engine/requirements.txt).
 
-## Struktur Proyek
+## Menjalankan secara lokal
 
-```txt
-prism/
-├── app/
-│   ├── api/                  # Route handlers
-│   ├── admin/                # Halaman admin
-│   ├── login/                # Halaman login
-│   ├── register/             # Halaman register
-│   └── student/              # Dashboard, test, result, modules
-├── components/               # Komponen UI
-├── lib/                      # Auth, scoring, prisma helpers, dll
-├── prisma/
-│   ├── schema.prisma         # Database schema
-│   ├── seed.ts               # Seeder utama
-│   └── seed-phase2.ts        # Seeder fase 2
-├── public/                   # Asset statis
-├── docs/
-│   ├── guides/               # Setup and operational guides
-│   ├── product/              # Product requirements
-│   ├── architecture/         # Architecture and codebase notes
-│   └── prototypes/            # Prototype specifications
-```
+Siapkan Node.js 22+, pnpm 11+, dan database PostgreSQL lokal. Python diperlukan jika menjalankan AI Engine.
 
----
-
-## Prasyarat
-
-- Node.js `22+`
-- pnpm `11+`
-- PostgreSQL `14+`
-
----
-
-## Setup Cepat
+### 1. Instal dependensi
 
 ```bash
+git clone git@github.com:mrizalbasri/prism.git
+cd prism
 pnpm install
-pnpm prisma generate
-pnpm prisma db push
+```
+
+### 2. Konfigurasikan environment
+
+Salin [`.env.example`](.env.example) menjadi `.env`. Untuk PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Atur `DATABASE_URL` ke database pengembangan yang sudah dibuat, isi `JWT_SECRET` dengan nilai acak, dan konfigurasikan kredensial penyedia AI sesuai kebutuhan. Penilaian berbasis AI memerlukan layanan yang dapat diakses; konfigurasi lengkap dijelaskan dalam [panduan pengembangan lokal](docs/guides/SETUP.md).
+
+### 3. Siapkan database dan materi awal
+
+Jalankan pada **database pengembangan baru**. Seeder menghapus dan mengisi ulang koleksi soal atau materi terkait.
+
+```bash
+pnpm exec prisma generate
+pnpm exec prisma db push
 pnpm seed
+pnpm seed:phase2
+```
+
+### 4. Jalankan aplikasi
+
+```bash
 pnpm dev
 ```
 
-Akses aplikasi di: `http://localhost:3000`
+Buka [localhost:3000](http://localhost:3000). Untuk audio dan pembuatan soal melalui layanan Python, jalankan [AI Engine](ai-engine/README.md) secara terpisah. Jika `REDIS_URL` diisi, jalankan juga worker sesuai [panduan setup](docs/guides/SETUP.md#worker-penilaian-opsional).
 
----
+## Perintah pengembangan
 
-## Environment Variables
+| Perintah | Fungsi |
+| --- | --- |
+| `pnpm dev` | Menjalankan server pengembangan |
+| `pnpm build` | Membuat build produksi |
+| `pnpm start` | Menjalankan hasil build |
+| `pnpm lint` | Memeriksa kode dengan ESLint |
+| `pnpm test` | Menjalankan pengujian Vitest |
+| `pnpm exec tsc --noEmit` | Memeriksa tipe TypeScript |
+| `pnpm seed` | Mengisi ulang soal placement test |
+| `pnpm seed:phase2` | Mengisi ulang materi modul belajar |
 
-Buat file `.env` di root project.
+## Struktur proyek
 
-Contoh minimum:
-
-```env
-# Database
-DATABASE_URL="postgresql://username:password@localhost:5432/prism_db?schema=public"
-
-# Auth
-JWT_SECRET="change-me"
-JWT_EXPIRES_IN="7d"
-
-# AI
-GEMINI_API_KEY="your-gemini-api-key"
-MINIMAX_API_KEY="your-minimax-api-key"
-
-# Opsional model override
-GEMINI_WRITING_MODEL="gemini-2.5-flash"
-GEMINI_SPEAKING_MODEL="gemini-2.5-flash"
-MINIMAX_MODEL="MiniMax-M3"
-MINIMAX_BASE_URL="https://api.tokenrouter.com/v1"
-
-# App
-NODE_ENV="development"
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
+```text
+app/          Halaman App Router dan API mahasiswa/admin
+components/   Komponen antarmuka berdasarkan area produk
+lib/          Autentikasi, penilaian, data, audio, dan integrasi layanan
+prisma/       Skema database dan seeder
+ai-engine/    Layanan pendamping Python/FastAPI
+workers/      Worker antrean penilaian AI
+tests/        Pengujian aplikasi
+public/       Aset statis
+docs/         Panduan, kebutuhan produk, dan catatan arsitektur
 ```
 
-> Catatan: untuk endpoint text-based scoring, gunakan model Gemini yang support `generateContent` (misalnya `gemini-2.5-flash`).
+## Dokumentasi
 
----
+- [Indeks dokumentasi](docs/README.md)
+- [Pengembangan lokal dan konfigurasi layanan](docs/guides/SETUP.md)
+- [Penilaian, kegagalan, dan penilaian ulang](docs/guides/SCORING_RELIABILITY.md)
+- [AI Engine](ai-engine/README.md)
+- [Product Requirements Document](docs/product/PRISM_PRD_v2.md)
 
-## Scripts
+## Status pengembangan
 
-```bash
-pnpm dev              # Jalankan dev server
-pnpm build            # Build production
-pnpm start            # Jalankan hasil build
-pnpm lint             # Lint project
-pnpm seed             # Seed data awal
-pnpm seed:phase2      # Seed data fase 2
-```
+PRISM masih dalam pengembangan. Alur asesmen, latihan, dan administrasi tersedia dalam kode; kesiapan penggunaan kampus tetap memerlukan verifikasi alur lengkap dengan database, penyedia AI, dan penyimpanan audio pada lingkungan tujuan. Dokumen perencanaan dapat mencakup fitur yang belum diimplementasikan.
 
----
-
-## Alur User (High Level)
-
-1. User register/login
-2. Student masuk dashboard
-3. Student mulai placement test
-4. Jawaban disimpan dan test disubmit
-5. Sistem scoring + hasil level
-6. Student melihat hasil
-7. Student buka modul belajar (jika akses modul aktif)
-
----
-
-## Status Implementasi Saat Ini
-
-Project sudah punya fondasi end-to-end, namun beberapa route masih dalam proses sinkronisasi antar:
-
-- kontrak data frontend ↔ backend,
-- handler API ↔ Prisma schema,
-- status enum pada flow writing/speaking.
-
-Jika kamu ingin menstabilkan dulu sebelum production, fokuskan perbaikan pada:
-
-- `app/api/test/*`
-- `app/api/writing/*`
-- `app/api/speaking/*`
-
----
-
-## Dokumentasi Tambahan
-
-- Setup detail: [`SETUP.md`](./docs/guides/SETUP.md)
-- Product requirements: [`PRISM_PRD_v2.md`](./docs/product/PRISM_PRD_v2.md)
-
----
-
-## Catatan
-
-- Jangan commit API keys ke repository.
-- Gunakan database terpisah untuk development dan production.
-- Jalankan `pnpm lint` setelah perubahan besar.
+Untuk mengusulkan perubahan, gunakan [GitHub Issues](https://github.com/mrizalbasri/prism/issues) dengan konteks, langkah reproduksi, dan perilaku yang diharapkan. Sebelum mengajukan perubahan kode, jalankan lint, pemeriksaan tipe, dan tes yang relevan. Jangan sertakan kredensial atau data pribadi mahasiswa.

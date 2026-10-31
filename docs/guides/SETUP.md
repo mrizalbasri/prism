@@ -1,226 +1,114 @@
-# PRISM Setup Guide
+# Pengembangan lokal PRISM
 
-## Prerequisites
+[Kembali ke dokumentasi](../README.md)
 
-- Node.js 22+ and pnpm 11+
-- PostgreSQL 14+
-- Git
+## Prasyarat
 
-## Initial Setup
+- Node.js 22+ dan pnpm 11+.
+- Database PostgreSQL lokal yang sudah dibuat dan dapat diakses.
+- Python untuk AI Engine; Dockerfile layanan menggunakan Python 3.12.
+- Kredensial penyedia AI untuk menguji penilaian Writing/Speaking dan pembuatan soal.
+- Redis hanya jika memakai antrean penilaian terpisah.
 
-### 1. Clone and Install Dependencies
+## Aplikasi web
+
+Instal dependensi dari root repository:
 
 ```bash
 pnpm install
 ```
 
-### 2. Database Setup
+Salin template environment dengan PowerShell:
 
-Create a PostgreSQL database:
-
-```bash
-createdb prism_db
+```powershell
+Copy-Item .env.example .env
 ```
 
-### 3. Environment Variables
+Sesuaikan konfigurasi berikut di `.env`:
 
-Create a `.env` file in the root directory with the following variables:
+| Variabel | Penggunaan |
+| --- | --- |
+| `DATABASE_URL` | Koneksi database PostgreSQL pengembangan. Sesuaikan host, port, nama database, dan akun lokal. |
+| `DATABASE_MAX_CONNECTIONS` | Batas koneksi database aplikasi. |
+| `JWT_SECRET` | Rahasia acak untuk tanda tangan sesi autentikasi. |
+| `GEMINI_API_KEY` | Kredensial Gemini; penilaian audio Speaking memakai jalur Gemini. |
+| `GEMINI_WRITING_MODEL`, `GEMINI_SPEAKING_MODEL` | Model sesuai dukungan akun dan endpoint penyedia. |
+| `MINIMAX_API_KEY`, `MINIMAX_BASE_URL`, `MINIMAX_MODEL` | Konfigurasi MiniMax untuk jalur penilaian teks. |
+| `AI_ENGINE_URL` | Alamat layanan Python, secara lokal `http://127.0.0.1:8000`. |
+| `AI_ENGINE_INTERNAL_KEY` | Rahasia komunikasi yang harus sama dengan `INTERNAL_API_KEY` pada AI Engine. |
+| `REDIS_URL` | Kosongkan untuk pemrosesan penilaian lokal; isi untuk memakai BullMQ dan worker terpisah. |
 
-```env
-# Database
-DATABASE_URL="postgresql://username:password@localhost:5432/prism_db?schema=public"
+`LLM_PROVIDER` juga tersedia dalam template. Pemilihan penyedia pada aplikasi web mengikuti implementasi masing-masing layanan; mengganti variabel ini saja tidak mengganti seluruh jalur penilaian. Untuk menguji penilaian lengkap beserta audio, siapkan Gemini dan periksa perilaku penyedia pada lingkungan yang dipakai.
 
-# Authentication
-JWT_SECRET="your-super-secret-jwt-key-change-this-in-production"
-JWT_EXPIRES_IN="7d"
-
-# Campus Configuration
-ALLOWED_EMAIL_DOMAINS="student.president.ac.id,admin.president.ac.id"
-
-# AI Services (Google Gemini)
-GEMINI_API_KEY="your-gemini-api-key-here"
-# Optional model overrides
-GEMINI_WRITING_MODEL="gemini-2.0-flash"
-GEMINI_SPEAKING_MODEL="gemini-2.0-flash"
-
-# Application
-NODE_ENV="development"
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
-
-# Admin Default Account (for initial setup)
-ADMIN_EMAIL="admin@president.ac.id"
-ADMIN_PASSWORD="change-this-password"
-
-# File Upload (for speaking audio)
-MAX_AUDIO_SIZE_MB="10"
-UPLOAD_DIR="./uploads/audio"
-
-# Rate Limiting
-RATE_LIMIT_MAX_REQUESTS="100"
-RATE_LIMIT_WINDOW_MS="900000"
-
-# Scoring Configuration
-VOCAB_WEIGHT="0.20"
-GRAMMAR_WEIGHT="0.20"
-READING_WEIGHT="0.25"
-WRITING_WEIGHT="0.20"
-SPEAKING_WEIGHT="0.15"
-
-# Test Configuration
-VOCAB_TIME_LIMIT_SEC="480"
-GRAMMAR_TIME_LIMIT_SEC="480"
-READING_TIME_LIMIT_SEC="720"
-WRITING_TIME_LIMIT_SEC="600"
-SPEAKING_TIME_LIMIT_SEC="420"
-```
-
-### 4. Run Database Migrations
+Siapkan skema dan materi pada **database pengembangan baru**:
 
 ```bash
-pnpm prisma generate
-pnpm prisma db push
-```
-
-### 5. Seed Initial Data (Optional)
-
-```bash
+pnpm exec prisma generate
+pnpm exec prisma db push
 pnpm seed
-```
-
-### 6. Start Development Server
-
-```bash
+pnpm seed:phase2
 pnpm dev
 ```
 
-Visit `http://localhost:3000`
+`db push` menyinkronkan skema untuk pengembangan lokal. Kedua seeder menghapus dan mengisi ulang koleksi soal atau materi terkait; jangan jalankan pada database berisi data yang perlu dipertahankan. Seeder tersebut tidak membuat akun admin. Pendaftaran aplikasi digunakan untuk akun mahasiswa; penetapan peran admin perlu dilakukan melalui pengelolaan database yang terkontrol.
 
-## Database Schema
+Aplikasi tersedia di [localhost:3000](http://localhost:3000).
 
-The Prisma schema includes:
+## AI Engine
 
-- **Users**: Student and admin accounts
-- **TestAttempts**: Placement test sessions
-- **SectionAttempts**: Individual test sections (Vocabulary, Grammar, Reading, Writing, Speaking)
-- **ObjectiveAnswers**: Multiple choice responses
-- **WritingResponse**: Essay responses with AI scoring
-- **SpeakingResponse**: Audio responses with AI scoring
-- **FinalResult**: Computed scores and proficiency levels
-- **Questions**: Question bank for objective sections
-- **Prompts**: Writing and speaking prompts
-- **AuditLog**: System activity tracking
+Pada terminal terpisah, jalankan dari direktori `ai-engine`:
 
-## Next Steps
+```powershell
+cd ai-engine
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Copy-Item .env.example .env
+```
 
-### Phase 1 MVP Implementation Order:
-
-1. ✅ **Database Schema** - Completed
-2. **Authentication System**
-   - Register/login endpoints
-   - JWT token management
-   - Role-based access control
-   - Campus email validation
-
-3. **Question Bank Setup**
-   - Create seed data for vocabulary questions
-   - Create seed data for grammar questions
-   - Create seed data for reading passages
-   - Create writing prompts
-   - Create speaking prompts
-
-4. **Test Engine**
-   - Test session management
-   - Section timer implementation
-   - Autosave functionality
-   - Answer submission handling
-
-5. **Scoring System**
-   - Objective section scoring
-   - AI integration for writing evaluation
-   - AI integration for speaking evaluation
-   - Final score calculation with weights
-
-6. **Student Interface**
-   - Test-taking UI with timers
-   - Progress indicators
-   - Result display page
-
-7. **Admin Dashboard**
-   - Student results listing
-   - Filtering by cohort/major
-   - CSV export functionality
-
-8. **Testing & Deployment**
-   - End-to-end testing
-   - Production deployment
-   - SSL setup
-
-## Development Commands
+Isi `INTERNAL_API_KEY` dengan nilai yang sama dengan `AI_ENGINE_INTERNAL_KEY` aplikasi web. Konfigurasi penyedia untuk pembuatan soal diatur terpisah di `ai-engine/.env`; variabel yang didukung dapat dilihat pada [`config.py`](../../ai-engine/app/core/config.py).
 
 ```bash
-# Install dependencies
-pnpm install
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
 
-# Generate Prisma client
-pnpm prisma generate
+Layanan menyediakan audio Piper dan pembuatan soal. Model suara disimpan di `ai-engine/models/piper`; pengunduhan awal memerlukan koneksi internet. Lihat [README AI Engine](../../ai-engine/README.md) untuk aktivasi virtual environment pada platform lain dan endpoint layanan.
 
-# Push schema to database
-pnpm prisma db push
+## Worker penilaian opsional
 
-# Open Prisma Studio (database GUI)
-pnpm prisma studio
+Jika `REDIS_URL` diisi, jalankan Redis dan proses worker terpisah dari root repository dengan environment yang sama seperti aplikasi web:
 
-# Run development server
-pnpm dev
+```bash
+pnpm exec tsx --env-file=.env workers/ai-evaluation.worker.ts
+```
 
-# Build for production
-pnpm build
+Tanpa `REDIS_URL`, aplikasi menjalankan penilaian di dalam proses aplikasi. Menetapkan URL Redis tidak otomatis menjalankan worker. Detail kegagalan dan retry tersedia di [panduan penilaian](SCORING_RELIABILITY.md).
 
-# Start production server
-pnpm start
+## Penyimpanan audio
 
-# Run linter
+Secara lokal, rekaman disimpan di `public/uploads/audio`. Template root juga menyediakan konfigurasi Cloudflare R2 serta alternatif AWS S3. Untuk penyimpanan cloud, sesuaikan endpoint, bucket, kredensial, dan public URL HTTPS yang dapat dibaca server penilaian.
+
+Pembuatan audio melalui jalur Edge TTS memiliki konfigurasi tersendiri di [`lib/tts.ts`](../../lib/tts.ts): `EDGE_TTS_URL`, `EDGE_TTS_KEY`, dan `EDGE_TTS_MODEL`. Sesuaikan hanya jika memakai jalur tersebut.
+
+## Pemeriksaan
+
+```bash
 pnpm lint
+pnpm exec tsc --noEmit
+pnpm test
+pnpm build
 ```
 
-## Project Structure
+Lanjutkan dengan uji manual pendaftaran/login, enam bagian placement test, hasil, aktivasi modul, Vocabulary, Writing, Speaking, ekspor admin, dan penilaian ulang saat layanan AI gagal. Gunakan akun dan data uji.
 
-```
-prism/
-├── app/                    # Next.js app directory
-│   ├── api/               # API routes
-│   ├── admin/             # Admin pages
-│   ├── student/           # Student pages
-│   └── login/             # Auth pages
-├── lib/                   # Shared utilities
-│   ├── auth.ts           # Authentication helpers
-│   ├── scoring.ts        # Scoring logic
-│   └── types.ts          # TypeScript types
-├── prisma/               # Database schema
-│   └── schema.prisma
-├── public/               # Static assets
-└── docs/                 # Documentation
-```
+## Pemecahan masalah
 
-## Troubleshooting
+| Gejala | Pemeriksaan |
+| --- | --- |
+| Koneksi database gagal | Pastikan PostgreSQL aktif, database tersedia, dan `DATABASE_URL` sesuai. |
+| Prisma Client belum tersedia | Jalankan `pnpm exec prisma generate` setelah instalasi atau perubahan skema. |
+| AI Engine tidak dapat diakses | Periksa proses Python, `AI_ENGINE_URL`, serta kesamaan kedua rahasia internal. |
+| Penilaian tetap menunggu | Jika Redis dikonfigurasi, pastikan worker aktif dan memakai environment yang sama. |
+| Penilaian AI gagal | Periksa kredensial, akses model, konektivitas penyedia, dan keterbacaan rekaman; gunakan alur retry admin. |
 
-### Database Connection Issues
-- Verify PostgreSQL is running
-- Check DATABASE_URL format
-- Ensure database exists
-
-### Prisma Client Issues
-```bash
-pnpm prisma generate --force
-```
-
-### Migration Issues
-```bash
-pnpm prisma db push --force-reset
-```
-
-## Support
-
-For issues or questions, refer to:
-- [PRISM_PRD_v2.md](../product/PRISM_PRD_v2.md) - Product requirements
-- [Phase 1 SRS](./docs/superpowers/specs/2026-06-12-prism-phase-1-mvp-srs.md) - Technical specifications
+File `.env`, rekaman runtime, dan model suara bukan bagian dari source yang perlu di-commit.
