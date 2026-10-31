@@ -1,4 +1,4 @@
-import { Queue, Worker, Job } from "bullmq";
+import { Queue } from "bullmq";
 import Redis from "ioredis";
 
 export type AIScoringJobData =
@@ -81,7 +81,5 @@ export async function enqueueAIScoring(
   }
 
   // Fallback to in-process execution (Next.js after or promise)
-  await fallbackExecutor().catch((err) => {
-    console.error(`AI scoring fallback execution failed for ${data.type}:`, err);
-  });
+  await fallbackExecutor();
 }
