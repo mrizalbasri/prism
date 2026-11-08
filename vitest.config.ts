@@ -18,6 +18,12 @@ export default defineConfig({
       JWT_SECRET: "test-secret-key-for-vitest-12345",
       NODE_ENV: "test",
     },
+    coverage: {
+      provider: "v8",
+      include: ["lib/**", "app/**", "components/**", "workers/**", "middleware.ts"],
+      exclude: ["app/**/*.css", "coverage/**"],
+      reporter: ["text", "lcov"],
+    },
   },
   resolve: {
     alias: {
