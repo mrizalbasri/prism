@@ -1,3 +1,4 @@
+import prisma from '@/lib/prisma';
 import { NextRequest, NextResponse } from 'next/server';
 import path from 'path';
 import crypto from 'crypto';
@@ -54,6 +55,7 @@ export async function POST(request: NextRequest) {
     // Upload via cloud storage (R2/S3) or fallback to local disk
     const { url, provider } = await uploadAudio(buffer, fileName, file.type);
 
+    await prisma.auditLog.create({ data: { userId: user.id, action: 'AUDIO_UPLOADED', resource: 'Audio', metadata: { url, provider } } });
     return NextResponse.json({ url, provider }, { status: 200 });
   } catch (error) {
     console.error('File upload error:', error);

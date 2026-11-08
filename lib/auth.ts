@@ -111,6 +111,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
       select: {
+        status: true,
         id: true,
         email: true,
         role: true,
@@ -122,7 +123,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
       },
     });
 
-    return user;
+    return user?.status === 'ACTIVE' ? user : null;
   } catch {
     return null;
   }
@@ -142,6 +143,7 @@ export async function getCurrentUserFromRequest(request: NextRequest): Promise<A
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
       select: {
+        status: true,
         id: true,
         email: true,
         role: true,
@@ -153,7 +155,7 @@ export async function getCurrentUserFromRequest(request: NextRequest): Promise<A
       },
     });
 
-    return user;
+    return user?.status === 'ACTIVE' ? user : null;
   } catch {
     return null;
   }

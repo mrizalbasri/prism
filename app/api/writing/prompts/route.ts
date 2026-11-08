@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!user.hasModuleAccess) {
+    if (user.role !== 'STUDENT' || !user.hasModuleAccess) {
       return NextResponse.json({ error: 'Akses modul terkunci. Butuh token dosen.' }, { status: 403 });
     }
 

@@ -45,6 +45,8 @@ export async function uploadAudio(
 ): Promise<UploadAudioResult> {
   if (isCloudStorageConfigured()) {
     try {
+      const publicBaseUrl = process.env.R2_PUBLIC_URL || process.env.AWS_S3_PUBLIC_URL;
+      if (!publicBaseUrl || new URL(publicBaseUrl).protocol !== "https:") throw new Error("HTTPS public audio URL required");
       const s3 = getS3Client();
       const bucket = (process.env.R2_BUCKET_NAME || process.env.AWS_S3_BUCKET_NAME)!;
       const key = `audio/${fileName}`;
@@ -58,10 +60,7 @@ export async function uploadAudio(
         })
       );
 
-      const publicBaseUrl = process.env.R2_PUBLIC_URL || process.env.AWS_S3_PUBLIC_URL;
-      const url = publicBaseUrl
-        ? `${publicBaseUrl.replace(/\/$/, "")}/${key}`
-        : `https://${bucket}.r2.cloudflarestorage.com/${key}`;
+      const url = `${publicBaseUrl.replace(/\/$/, "")}/${key}`;
 
       return { url, provider: "cloud" };
     } catch (err) {

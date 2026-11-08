@@ -14,6 +14,9 @@ export async function GET(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    if (user.role !== 'STUDENT' || !user.hasModuleAccess) {
+      return NextResponse.json({ error: 'Module access required' }, { status: 403 });
+    }
 
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get('limit') || '10');
@@ -42,6 +45,9 @@ export async function POST(request: NextRequest) {
     const user = await getCurrentUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (user.role !== 'STUDENT' || !user.hasModuleAccess) {
+      return NextResponse.json({ error: 'Module access required' }, { status: 403 });
     }
 
     const body = await request.json();

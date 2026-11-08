@@ -19,7 +19,7 @@ export function WelcomeOverlay({ onStartTest }: WelcomeOverlayProps) {
             PRISM Placement Test
           </div>
           <h2 className="font-hanken text-3xl md:text-4xl font-black leading-tight">
-            Selesaikan Placement Test Anda 🚀
+            Selesaikan Placement Test Anda
           </h2>
           <p className="font-inter text-sm text-blue-100 leading-relaxed max-w-lg">
             Sebelum mengakses modul belajar mandiri, Anda perlu menyelesaikan <strong>Adaptive Placement Test</strong> terlebih dahulu untuk mengukur kemampuan bahasa Inggris akademik Anda.

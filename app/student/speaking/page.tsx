@@ -244,7 +244,7 @@ export default function SpeakingPage() {
                 }
               } else if (s.status === "FAILED") {
                 if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-                setActionError("Evaluasi AI gagal memproses rekaman ini. Silakan coba lagi.");
+                setActionError("Penilaian AI gagal. Rekaman tetap tersimpan; hubungi admin untuk mengulang penilaian.");
                 setIsSubmitting(false);
               }
             }
@@ -334,7 +334,7 @@ export default function SpeakingPage() {
                 }
               } else if (s.status === "FAILED") {
                 if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-                setActionError("Evaluasi AI gagal memproses latihan membaca ini. Silakan coba lagi.");
+                setActionError("Penilaian AI gagal. Rekaman latihan tetap tersimpan; hubungi admin untuk mengulang penilaian.");
                 setIsSubmitting(false);
               }
             }

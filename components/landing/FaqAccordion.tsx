@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Plus, Minus } from "lucide-react";
 
 type FAQItem = {
   question: string;
@@ -14,7 +15,7 @@ const FAQS: FAQItem[] = [
   },
   {
     question: "Berapa lama durasi pengerjaan tes dan bagaimana format soalnya?",
-    answer: "Tes penempatan berlangsung sekitar 45 menit dan mencakup 5 sub-tes: Vocabulary (pilihan ganda), Grammar (pilihan ganda), Reading (pemahaman paragraf), Writing (menulis esai pendek dinilai AI), dan Speaking (melafalkan kalimat lisan dinilai AI).",
+    answer: "Tes mencakup enam bagian: Vocabulary, Grammar, Listening, Reading, Writing, dan Speaking. Durasi default seluruh bagian sekitar 55 menit. Jumlah soal dan waktu dapat disesuaikan admin; periksa petunjuk sebelum mulai.",
   },
   {
     question: "Apakah saya bisa menjeda atau mengulang tes di tengah jalan?",
@@ -22,7 +23,7 @@ const FAQS: FAQItem[] = [
   },
   {
     question: "Bagaimana cara mengakses modul pembelajaran mandiri PRISM?",
-    answer: "Setelah menyelesaikan Placement Test, level dan laporan performa Anda akan langsung keluar. Anda dapat mengakses materi belajar (Vocabulary, Writing, Speaking) di Dashboard Siswa dengan memasukkan kode/token akses yang diberikan oleh Dosen kelas Anda.",
+    answer: "Setelah tes dikirim, sistem memproses jawaban dan penilaian AI. Level dan laporan performa tersedia setelah proses selesai. Anda dapat mengakses materi belajar (Vocabulary, Writing, Speaking) di Dashboard Siswa dengan memasukkan kode/token akses yang diberikan oleh Dosen kelas Anda.",
   },
   {
     question: "Apakah platform ini gratis untuk digunakan?",
@@ -32,49 +33,14 @@ const FAQS: FAQItem[] = [
 
 export default function FaqAccordion() {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-
-  const toggleIndex = (index: number) => {
-    setActiveIndex(activeIndex === index ? null : index);
-  };
-
   return (
-    <div className="space-y-4 max-w-3xl mx-auto text-left">
-      {FAQS.map((faq, idx) => {
-        const isOpen = activeIndex === idx;
-        return (
-          <div
-            key={idx}
-            className={`bg-white rounded-2xl border transition-all duration-300 overflow-hidden ${
-              isOpen 
-                ? "border-blue-500/20 shadow-lg shadow-blue-500/5" 
-                : "border-gray-200/80 hover:border-blue-500/30 hover:shadow-md"
-            }`}
-          >
-            <button
-              onClick={() => toggleIndex(idx)}
-              className="w-full text-left p-6 flex items-center justify-between gap-4 font-hanken font-bold text-gray-900 hover:text-blue-600 transition-colors focus:outline-none cursor-pointer"
-            >
-              <span className="text-sm md:text-base">{faq.question}</span>
-              <span className={`material-symbols-outlined text-gray-400 transform transition-all duration-300 flex-shrink-0 ${
-                isOpen ? "rotate-180 text-blue-600" : ""
-              }`}>
-                expand_more
-              </span>
-            </button>
-            
-            <div
-              className={`transition-all duration-350 ease-in-out overflow-hidden ${
-                isOpen 
-                  ? "max-h-72 opacity-100 border-t border-gray-100" 
-                  : "max-h-0 opacity-0"
-              }`}
-            >
-              <div className="p-6 font-inter text-xs md:text-sm text-gray-500 leading-relaxed bg-gray-50/50">
-                {faq.answer}
-              </div>
-            </div>
-          </div>
-        );
+    <div className="landing-faq-list">
+      {FAQS.map((faq, index) => {
+        const open = activeIndex === index;
+        return <div className="landing-faq-item" key={faq.question}>
+          <h3><button id={"faq-question-" + index} type="button" aria-expanded={open} aria-controls={"faq-answer-" + index} onClick={() => setActiveIndex(open ? null : index)}><span>{faq.question}</span>{open ? <Minus size={20} aria-hidden="true" /> : <Plus size={20} aria-hidden="true" />}</button></h3>
+          <div id={"faq-answer-" + index} role="region" aria-labelledby={"faq-question-" + index} hidden={!open}><p>{faq.answer}</p></div>
+        </div>;
       })}
     </div>
   );

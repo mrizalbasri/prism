@@ -1,3 +1,4 @@
+import { readScoringAudio } from "@/lib/scoring-audio";
 import { SectionType } from "@prisma/client";
 import prisma from "@/lib/prisma";
 
@@ -183,45 +184,21 @@ export async function scoreObjectiveAnswer(
   return { isCorrect, score };
 }
 
-function parseAiJson(text: string): { score: number; feedback: Record<string, unknown> } {
-  try {
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.warn("AI response does not contain a JSON object block, using text fallback");
-      return {
-        score: 70,
-        feedback: { message: text.trim() || "Evaluasi AI selesai." }
-      };
+export function parseAiJson(text: string): { score: number; feedback: Record<string, unknown> } {
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error("Invalid AI scoring response");
+  const parsed = JSON.parse(match[0]);
+  const valid = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100;
+  if (!valid(parsed.score)) throw new Error("Invalid AI score");
+  const feedback: Record<string, unknown> = parsed.feedback && typeof parsed.feedback === "object" && !Array.isArray(parsed.feedback) ? { ...parsed.feedback } : {};
+  for (const key of ["grammarScore", "clarityScore", "structureScore", "fluencyScore", "pronunciationScore"]) {
+    for (const source of [parsed, feedback]) {
+      if (key in source && !valid(source[key])) throw new Error("Invalid AI component score");
     }
-
-    const parsed = JSON.parse(jsonMatch[0]);
-    const score = Math.min(100, Math.max(0, Number(parsed.score || 0)));
-    const feedback = typeof parsed.feedback === 'object' && parsed.feedback !== null 
-      ? { ...parsed.feedback } 
-      : { message: String(parsed.feedback || '') };
-    
-    if ('grammarScore' in parsed) feedback.grammarScore = Number(parsed.grammarScore);
-    if ('clarityScore' in parsed) feedback.clarityScore = Number(parsed.clarityScore);
-    if ('structureScore' in parsed) feedback.structureScore = Number(parsed.structureScore);
-    if ('fluencyScore' in parsed) feedback.fluencyScore = Number(parsed.fluencyScore);
-    if ('pronunciationScore' in parsed) feedback.pronunciationScore = Number(parsed.pronunciationScore);
-    if ('transcript' in parsed) feedback.transcript = String(parsed.transcript);
-
-    return {
-      score,
-      feedback,
-    };
-  } catch (err) {
-    console.error("Failed to parse AI JSON response:", err, { rawText: text });
-    // ponytail: fallback safe score & feedback object so request doesn't throw 500
-    return {
-      score: 65,
-      feedback: {
-        message: "Evaluasi AI selesai dengan catatan format bawaan.",
-        rawText: text.substring(0, 300),
-      }
-    };
+    if (key in parsed) feedback[key] = parsed[key];
   }
+  if (typeof parsed.transcript === "string") feedback.transcript = parsed.transcript;
+  return { score: parsed.score, feedback };
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage = "Request timed out"): Promise<T> {
@@ -262,6 +239,7 @@ async function runGeminiScoringWithFallback(
 
     const response = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
+      signal: AbortSignal.timeout(15000),
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`,
@@ -356,6 +334,7 @@ async function runMiniMaxScoring(
 
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
+    signal: AbortSignal.timeout(15000),
     headers: {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${apiKey}`,
@@ -449,17 +428,7 @@ Return your response in JSON format:
     throw new Error("No AI API keys configured");
   } catch (error) {
     console.error("AI scoring error:", error);
-    // Fallback: basic length-based scoring
-    const wordCount = responseText.trim().split(/\s+/).length;
-    const score = Math.min(100, (wordCount / 150) * 70); // Basic scoring
-    return {
-      score,
-      feedback: {
-        error: "AI scoring unavailable, using basic scoring",
-        message:
-          "Penilaian otomatis tidak tersedia. Skor dasar berdasarkan panjang teks.",
-      },
-    };
+    throw new Error("Penilaian AI gagal. Jawaban tersimpan dan dapat dinilai ulang.", { cause: error });
   }
 }
 
@@ -472,45 +441,16 @@ export async function scoreSpeakingWithAI(
   rubric?: unknown,
   audioUrl?: string,
 ): Promise<{ score: number; feedback: Record<string, unknown> }> {
-  let audioData: { data: string; mimeType: string } | undefined = undefined;
-
-  if (audioUrl) {
-    try {
-      const fs = await import("fs");
-      const path = await import("path");
-      
-      const relativePath = audioUrl.startsWith("/") ? audioUrl.substring(1) : audioUrl;
-      const absolutePath = path.join(process.cwd(), "public", relativePath);
-
-      if (fs.existsSync(absolutePath)) {
-        const fileBuffer = fs.readFileSync(absolutePath);
-        const base64Data = fileBuffer.toString("base64");
-        
-        let mimeType = "audio/webm";
-        if (audioUrl.endsWith(".wav")) mimeType = "audio/wav";
-        else if (audioUrl.endsWith(".mp3")) mimeType = "audio/mp3";
-        else if (audioUrl.endsWith(".mpeg")) mimeType = "audio/mpeg";
-        else if (audioUrl.endsWith(".m4a")) mimeType = "audio/m4a";
-        
-        audioData = {
-          data: base64Data,
-          mimeType,
-        };
-      } else {
-        console.warn(`Audio file not found at ${absolutePath}`);
-      }
-    } catch (readError) {
-      console.error("Error reading speaking audio file:", readError);
-    }
-  }
-
+  const audioData = audioUrl ? await readScoringAudio(audioUrl) : undefined;
+  const hasTranscript = Boolean(transcriptText?.trim()) && !["(Audio recording submitted)", "Transcription completed by AI."].includes(transcriptText.trim());
+  if (!audioData && !hasTranscript) throw new Error("Speaking response is unavailable");
   const scoringPrompt = `
 You are an English language speaking assessment expert. Score the following student speaking response based on the transcript and/or the audio recording.
 
 PROMPT:
 ${promptText}
 
-${audioUrl ? `Please transcribe the audio recording and include it in the "transcript" field of the JSON output.` : `STUDENT TRANSCRIPT:
+${audioData ? `Please transcribe the audio recording and include it in the "transcript" field of the JSON output.` : `STUDENT TRANSCRIPT:
 ${transcriptText}`}
 
 RUBRIC:
@@ -549,37 +489,33 @@ Return your response in JSON format:
         const modelName =
           process.env.GEMINI_SPEAKING_MODEL ||
           "gemini-2.0-flash";
-        return await runGeminiScoringWithFallback(
+        const result = await runGeminiScoringWithFallback(
           scoringPrompt,
           modelName,
           "gemini-2.0-flash",
           audioData
         );
+        if (audioData && (typeof result.feedback.transcript !== "string" || !result.feedback.transcript.trim())) throw new Error("Audio transcription missing");
+        if (!audioData) delete result.feedback.pronunciationScore;
+        return result;
       } catch (geminiError) {
         console.warn("Speaking assessment: Gemini failed, trying MiniMax as fallback...", geminiError);
       }
     }
 
     // 2. Fallback to MiniMax
-    if (process.env.MINIMAX_API_KEY) {
+    if (process.env.MINIMAX_API_KEY && hasTranscript) {
       const modelName = process.env.MINIMAX_MODEL || "MiniMax-M3";
-      return await runMiniMaxScoring(scoringPrompt, modelName);
+      const result = await runMiniMaxScoring(scoringPrompt + "\nUse only the following transcript. Pronunciation cannot be assessed.\nSTUDENT TRANSCRIPT:\n" + transcriptText, modelName);
+      delete result.feedback.pronunciationScore;
+      delete result.feedback.transcript;
+      return result;
     }
 
     throw new Error("No AI API keys configured");
   } catch (error) {
     console.error("AI scoring error:", error);
-    // Fallback: basic length-based scoring
-    const wordCount = transcriptText.trim().split(/\s+/).length;
-    const score = Math.min(100, (wordCount / 100) * 70); // Basic scoring
-    return {
-      score,
-      feedback: {
-        error: "AI scoring unavailable, using basic scoring",
-        message:
-          "Penilaian otomatis tidak tersedia. Skor dasar berdasarkan panjang transkrip.",
-      },
-    };
+    throw new Error("Penilaian AI gagal. Jawaban tersimpan dan dapat dinilai ulang.", { cause: error });
   }
 }
 
@@ -607,6 +543,13 @@ export async function finalizeTestResults(
     throw new Error(`Test attempt ${testAttemptId} not found`);
   }
 
+  for (const section of testAttempt.sectionAttempts) {
+    const response = section.writingResponse || section.speakingResponse;
+    const submitted = section.writingResponse?.content.trim() || section.speakingResponse?.audioUrl || section.speakingResponse?.transcript?.trim();
+    if (submitted && (!response?.feedback || !(response.feedback as Record<string, unknown>).scoringValidated)) {
+      throw new Error("Cannot finalize an unscored response");
+    }
+  }
   const userId = testAttempt.userId;
   const sectionAttempts = testAttempt.sectionAttempts;
   const scores: Record<string, number> = {};

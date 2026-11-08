@@ -8,6 +8,7 @@ import VocabularyTab from "@/components/admin/VocabularyTab";
 import WritingTab from "@/components/admin/WritingTab";
 import SpeakingTab from "@/components/admin/SpeakingTab";
 import QuestionsTab from "@/components/admin/QuestionsTab";
+import FailedPracticeScoring from "@/components/admin/FailedPracticeScoring";
 import StatsGrid from "@/components/admin/StatsGrid";
 import ResultsFilters from "@/components/admin/ResultsFilters";
 import ResultsTable, { Row } from "@/components/admin/ResultsTable";
@@ -200,6 +201,7 @@ export default function AdminDashboardPage() {
 
             {/* Stats Grid Component */}
             <StatsGrid stats={stats} />
+            <FailedPracticeScoring />
 
             {/* Results Table & Filter Section */}
             <div className="space-y-6">
