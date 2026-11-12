@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "seed": "tsx prisma/seed.ts",
     "seed:phase2": "tsx prisma/seed-phase2.ts"
   },
