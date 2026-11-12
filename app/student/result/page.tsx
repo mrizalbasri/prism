@@ -11,6 +11,7 @@ import ResultHero from "@/components/student/result/ResultHero";
 import CompetencyChart from "@/components/student/result/CompetencyChart";
 import RecommendationGrid from "@/components/student/result/RecommendationGrid";
 import StudyGuidance from "@/components/student/result/StudyGuidance";
+import AnswerReviewSection, { SectionReview } from "@/components/student/result/AnswerReviewSection";
 
 type SectionScores = {
   vocabulary: number;
@@ -117,6 +118,9 @@ export default function StudentResultPage() {
   const [barsVisible, setBarsVisible] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
   const [progressPercent, setProgressPercent] = useState(0);
+  const [activeTab, setActiveTab] = useState<"summary" | "review">("summary");
+  const [reviewSections, setReviewSections] = useState<SectionReview[]>([]);
+  const [isLoadingReview, setIsLoadingReview] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function fetchResult(isPolling = false) {
@@ -168,6 +172,31 @@ export default function StudentResultPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!result?.testAttemptId) return;
+
+    let isMounted = true;
+    async function loadReview() {
+      setIsLoadingReview(true);
+      try {
+        const res = await fetch(`/api/student/review?attemptId=${result?.testAttemptId}`);
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          setReviewSections(data.sections || []);
+        }
+      } catch (err) {
+        console.error("Failed to load review data:", err);
+      } finally {
+        if (isMounted) setIsLoadingReview(false);
+      }
+    }
+
+    void loadReview();
+    return () => {
+      isMounted = false;
+    };
+  }, [result?.testAttemptId]);
 
   useEffect(() => {
     if (result || isLoading || error) return;
@@ -293,20 +322,60 @@ export default function StudentResultPage() {
           meta={meta}
         />
 
-        {/* 2-Column Dashboard Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-          {/* Left Column (2/3 width) */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* Competency breakdown with 6-axis Radar Chart */}
-            <CompetencyChart scores={result.scores} barsVisible={barsVisible} />
-
-            {/* Action Recommendations */}
-            <RecommendationGrid scores={result.scores} />
-          </div>
-
-          {/* Right Column (1/3 width) */}
-          <StudyGuidance level={result.level} guidance={guidance} />
+        {/* Navigation Tabs */}
+        <div className="flex border-b border-slate-200/80 dark:border-slate-800 gap-2">
+          <button
+            onClick={() => setActiveTab("summary")}
+            className={`pb-3 px-4 font-hanken text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+              activeTab === "summary"
+                ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+              <path d="M4 6h16M4 12h16M4 18h7" />
+            </svg>
+            Ringkasan & Analisis
+          </button>
+          <button
+            onClick={() => setActiveTab("review")}
+            className={`pb-3 px-4 font-hanken text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+              activeTab === "review"
+                ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+              <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Review Jawaban & Penjelasan
+            {reviewSections.some((s) => s.questions?.some((q) => !q.isCorrect)) && (
+              <span className="w-2 h-2 rounded-full bg-rose-500" />
+            )}
+          </button>
         </div>
+
+        {/* Tab Content */}
+        {activeTab === "summary" ? (
+          /* 2-Column Dashboard Layout */
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+            {/* Left Column (2/3 width) */}
+            <div className="lg:col-span-2 space-y-8">
+              {/* Competency breakdown with 6-axis Radar Chart */}
+              <CompetencyChart scores={result.scores} barsVisible={barsVisible} />
+
+              {/* Action Recommendations */}
+              <RecommendationGrid scores={result.scores} />
+            </div>
+
+            {/* Right Column (1/3 width) */}
+            <StudyGuidance level={result.level} guidance={guidance} />
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <AnswerReviewSection sections={reviewSections} isLoading={isLoadingReview} />
+          </div>
+        )}
       </main>
     </div>
   );
