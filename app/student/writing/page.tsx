@@ -8,6 +8,7 @@ import FeedbackBanner from "@/components/student/FeedbackBanner";
 import WritingFeedback from "@/components/student/writing/WritingFeedback";
 import WritingHistory from "@/components/student/writing/WritingHistory";
 import WritingPromptList from "@/components/student/writing/WritingPromptList";
+import WritingRevisionView from "@/components/student/writing/WritingRevisionView";
 import type { Submission, WritingPrompt } from "@/components/student/writing/types";
 
 export default function WritingPage() {
@@ -21,6 +22,7 @@ export default function WritingPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showResult, setShowResult] = useState(false);
+  const [isRevising, setIsRevising] = useState(false);
   const [result, setResult] = useState<Submission | null>(null);
   const [view, setView] = useState<"prompts" | "write" | "history">("prompts");
 
@@ -130,7 +132,8 @@ export default function WritingPage() {
                   scores: sub.scores,
                   feedback: sub.feedback,
                   submittedAt: sub.submittedAt,
-                  prompt: sub.prompt
+                  prompt: sub.prompt,
+                  responseText: sub.responseText || essay,
                 });
                 setShowResult(true);
                 setIsSubmitting(false);
@@ -168,6 +171,7 @@ export default function WritingPage() {
     setSelectedPrompt(prompt);
     setEssay("");
     setShowResult(false);
+    setIsRevising(false);
     setResult(null);
     setView("write");
   }
@@ -176,6 +180,7 @@ export default function WritingPage() {
     setSelectedPrompt(null);
     setEssay("");
     setShowResult(false);
+    setIsRevising(false);
     setResult(null);
     setView("prompts");
   }
@@ -344,61 +349,110 @@ export default function WritingPage() {
           </div>
         )}
 
-        {/* AI response feedback view */}
+        {/* AI response feedback & revision view */}
         {view === "write" && showResult && result && (
-          <div className="max-w-3xl mx-auto space-y-6 animate-fadeIn">
-            <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-8 md:p-12 shadow-xl space-y-8 text-center">
-              <div className="space-y-4">
-                <span className="material-symbols-outlined text-6xl text-orange-600 animate-pulse" style={{ fontVariationSettings: "'FILL' 1" }}>
-                  grade
-                </span>
-                <h2 className="font-hanken text-3xl font-extrabold text-gray-950 dark:text-white">Hasil Penilaian Writing</h2>
-                <div className="inline-flex items-center gap-3 bg-orange-50 dark:bg-orange-500/10 px-6 py-3 rounded-full border border-orange-200/50 dark:border-orange-900/30">
-                  <span className="font-hanken text-5xl font-black text-orange-600 dark:text-orange-400">{result.score}</span>
-                  <span className="font-inter text-xs text-gray-400 uppercase tracking-widest font-semibold">/ 100</span>
+          isRevising ? (
+            <WritingRevisionView
+              submission={result}
+              prompt={selectedPrompt!}
+              initialEssay={result.responseText || essay}
+              onCancel={() => setIsRevising(false)}
+              onRevisionSuccess={async (newRevision) => {
+                setResult((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        score: newRevision.scores.overall,
+                        scores: {
+                          grammar: newRevision.scores.grammar ?? prev.scores?.grammar ?? 0,
+                          clarity: newRevision.scores.clarity ?? prev.scores?.clarity ?? 0,
+                          structure: newRevision.scores.structure ?? prev.scores?.structure ?? 0,
+                          overall: newRevision.scores.overall,
+                        },
+                        feedback: newRevision.feedback,
+                        responseText: newRevision.revisedText,
+                      }
+                    : null
+                );
+                setEssay(newRevision.revisedText);
+
+                try {
+                  const historyRes = await fetch("/api/writing/submissions");
+                  if (historyRes.ok) {
+                    const data = await historyRes.json();
+                    const mapped = (data.submissions || []).map((s: { id: string; overallScore?: number; score?: number; prompt: { title: string }; submittedAt: string }) => ({
+                      ...s,
+                      score: s.overallScore ?? s.score ?? 0,
+                    }));
+                    setSubmissions(mapped);
+                  }
+                } catch (err) {
+                  console.error("Failed to reload submissions after revision:", err);
+                }
+              }}
+            />
+          ) : (
+            <div className="max-w-3xl mx-auto space-y-6 animate-fadeIn">
+              <div className="bg-white dark:bg-gray-850 rounded-3xl border border-gray-150 dark:border-gray-700 p-8 md:p-12 shadow-xl space-y-8 text-center">
+                <div className="space-y-4">
+                  <span className="material-symbols-outlined text-6xl text-orange-600 animate-pulse" style={{ fontVariationSettings: "'FILL' 1" }}>
+                    grade
+                  </span>
+                  <h2 className="font-hanken text-3xl font-extrabold text-gray-950 dark:text-white">Hasil Penilaian Writing</h2>
+                  <div className="inline-flex items-center gap-3 bg-orange-50 dark:bg-orange-500/10 px-6 py-3 rounded-full border border-orange-200/50 dark:border-orange-900/30">
+                    <span className="font-hanken text-5xl font-black text-orange-600 dark:text-orange-400">{result.score}</span>
+                    <span className="font-inter text-xs text-gray-400 uppercase tracking-widest font-semibold">/ 100</span>
+                  </div>
                 </div>
-              </div>
 
-              {result.scores && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {[
-                    { label: "Grammar", val: result.scores.grammar, color: "text-purple-600 dark:text-purple-400" },
-                    { label: "Clarity/Content", val: result.scores.clarity, color: "text-green-600 dark:text-green-400" },
-                    { label: "Structure", val: result.scores.structure, color: "text-orange-600 dark:text-orange-400" }
-                  ].map((s) => (
-                    <div key={s.label} className="bg-gray-50 dark:bg-gray-900/65 p-4 rounded-xl border border-gray-150 dark:border-gray-800 text-center space-y-1">
-                      <p className="font-inter text-[10px] text-gray-450 dark:text-gray-500 uppercase font-bold tracking-wider">{s.label}</p>
-                      <p className={`font-mono text-xl font-black ${s.color}`}>{Math.round(s.val)}%</p>
-                    </div>
-                  ))}
+                {result.scores && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {[
+                      { label: "Grammar", val: result.scores.grammar, color: "text-purple-600 dark:text-purple-400" },
+                      { label: "Clarity/Content", val: result.scores.clarity, color: "text-green-600 dark:text-green-400" },
+                      { label: "Structure", val: result.scores.structure, color: "text-orange-600 dark:text-orange-400" }
+                    ].map((s) => (
+                      <div key={s.label} className="bg-gray-50 dark:bg-gray-900/65 p-4 rounded-xl border border-gray-150 dark:border-gray-800 text-center space-y-1">
+                        <p className="font-inter text-[10px] text-gray-450 dark:text-gray-500 uppercase font-bold tracking-wider">{s.label}</p>
+                        <p className={`font-mono text-xl font-black ${s.color}`}>{Math.round(s.val)}%</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  <h3 className="font-hanken text-base font-bold text-gray-950 dark:text-white flex items-center gap-2">
+                    <span className="material-symbols-outlined text-orange-600">feedback</span>
+                    Umpan Balik AI (Indonesia)
+                  </h3>
+                  <WritingFeedback feedback={result.feedback} />
                 </div>
-              )}
 
-              <div className="space-y-4">
-                <h3 className="font-hanken text-base font-bold text-gray-950 dark:text-white flex items-center gap-2">
-                  <span className="material-symbols-outlined text-orange-600">feedback</span>
-                  Umpan Balik AI (Indonesia)
-                </h3>
-                <WritingFeedback feedback={result.feedback} />
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-4 pt-2">
-                <button
-                  onClick={() => startNewEssay(selectedPrompt!)}
-                  className="flex-1 inline-flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 text-white font-hanken font-bold px-6 py-3.5 rounded-xl hover:shadow-lg transition-all cursor-pointer"
-                >
-                  <span className="material-symbols-outlined">refresh</span>
-                  Coba Tulis Lagi
-                </button>
-                <button
-                  onClick={resetAndGoBack}
-                  className="flex-1 inline-flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-800 dark:text-white font-hanken font-bold px-6 py-3.5 rounded-xl transition-all border border-transparent dark:border-gray-700 cursor-pointer"
-                >
-                  Kembali ke Topik
-                </button>
+                <div className="flex flex-col sm:flex-row gap-4 pt-2">
+                  <button
+                    onClick={() => setIsRevising(true)}
+                    className="flex-1 inline-flex items-center justify-center gap-2 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white font-hanken font-bold px-6 py-3.5 rounded-xl hover:shadow-lg transition-all cursor-pointer border-0"
+                  >
+                    <span className="material-symbols-outlined">edit_note</span>
+                    Revisi & Tingkatkan Skor
+                  </button>
+                  <button
+                    onClick={() => startNewEssay(selectedPrompt!)}
+                    className="inline-flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-800 dark:text-white font-hanken font-bold px-6 py-3.5 rounded-xl transition-all cursor-pointer border-0"
+                  >
+                    <span className="material-symbols-outlined">refresh</span>
+                    Tulis Ulang dari Nol
+                  </button>
+                  <button
+                    onClick={resetAndGoBack}
+                    className="inline-flex items-center justify-center gap-2 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 font-hanken font-bold px-4 py-3.5 rounded-xl transition-all border border-transparent dark:border-gray-700 cursor-pointer"
+                  >
+                    Kembali
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          )
         )}
 
         {view === "history" && (
