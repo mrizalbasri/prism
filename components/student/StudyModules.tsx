@@ -33,6 +33,15 @@ export function StudyModules({ levelNameFormatted }: StudyModulesProps) {
       bg: "bg-red-50 dark:bg-red-500/10",
       border: "hover:border-red-500/40",
       href: "/student/speaking"
+    },
+    {
+      title: "Grammar Practice",
+      description: "Kuasai tata bahasa Inggris dengan soal pilihan ganda, koreksi kesalahan, dan transformasi kalimat.",
+      icon: "spellcheck",
+      color: "text-purple-600 dark:text-purple-400",
+      bg: "bg-purple-50 dark:bg-purple-500/10",
+      border: "hover:border-purple-500/40",
+      href: "/student/grammar"
     }
   ];
 
